@@ -1,0 +1,19 @@
+{
+    "template_path": "templates/template1/template1.pdf",
+    "image_folder": "templates/template1/images",
+    "seed_text_path": "templates/template1/seed_text1.json",
+    "csv_files": [
+        {
+            "csv_path": "templates/template1/csv/age_distribution.csv",
+            "chart_type": "bar"
+        },
+        {
+            "csv_path": "templates/template1/csv/beneficiary_details.csv",
+            "chart_type": "pie"
+        },
+        {
+            "csv_path": "templates/template1/csv/grade_distribution.csv",
+            "chart_type": "line"
+        }
+    ]
+}

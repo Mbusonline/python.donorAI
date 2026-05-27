@@ -1,0 +1,39 @@
+# FastAPI framework
+fastapi==0.104.1
+uvicorn==0.24.0
+
+# Template extraction (PDF/DOCX)
+pymupdf==1.23.8  # Note: imports as 'fitz'
+python-docx==1.1.0
+
+# Gemini (template / metadata extraction)
+google-generativeai==0.3.2
+Pillow==10.2.0  # For image processing
+
+# Step 3: CSV processing and charts
+pandas==2.1.4
+openpyxl
+xlrd
+plotly
+kaleido
+tabulate==0.9.0  # Required for pandas.to_markdown()
+
+# Step 4: Content assembly (OpenAI)
+openai>=2.8.0
+
+# Step 5: PDF export
+markdown2==2.4.12
+reportlab==4.0.9  # Pure Python PDF library (Windows compatible)
+
+# Utilities
+python-dotenv==1.0.0
+
+# Database + vector
+psycopg[binary]
+pgvector
+
+# S3 download
+boto3
+
+# Redis queue
+redis

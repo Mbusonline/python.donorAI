@@ -1,0 +1,2 @@
+"""Database utilities (PostgreSQL + pgvector)."""
+
