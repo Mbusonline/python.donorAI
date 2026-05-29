@@ -337,23 +337,48 @@ def enqueue_metadata(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _mark_report_pipeline_failed(report_pipeline_id: Optional[str]) -> None:
+    """Best-effort: set tbl_report_pipeline.status to failed when generation did not succeed."""
+    if not report_pipeline_id:
+        return
+    try:
+        with connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE tbl_report_pipeline
+                    SET status = 'failed', updated_at = now()
+                    WHERE report_pipeline_id::text = %s
+                    """,
+                    (str(report_pipeline_id),),
+                )
+            conn.commit()
+    except Exception as inner:
+        print(
+            f"[generate-from-db] warning: failed to set pipeline status=failed "
+            f"report_pipeline_id={report_pipeline_id!r}: {inner}"
+        )
+
+
 @app.post("/api/reports/generate-from-db")
 def generate_report_from_db(request: GenerateReportFromDbRequest):
+    pipeline_id = request.report_pipeline_id
     try:
         print(
-            f"[generate-from-db] request report_pipeline_id={request.report_pipeline_id!r}"
+            f"[generate-from-db] request report_pipeline_id={pipeline_id!r}"
         )
-        result = run_db_report_pipeline(report_pipeline_id=request.report_pipeline_id)
+        result = run_db_report_pipeline(report_pipeline_id=pipeline_id)
         print(
             "[generate-from-db] success "
-            f"report_pipeline_id={request.report_pipeline_id!r} "
+            f"report_pipeline_id={pipeline_id!r} "
             f"report_id={result.get('report_id')} s3_uri={result.get('s3_uri')}"
         )
         return {"success": True, "data": result}
     except ValueError as e:
+        _mark_report_pipeline_failed(pipeline_id)
         emsg = str(e)
         print(
-            f"[generate-from-db] value_error report_pipeline_id={getattr(request, 'report_pipeline_id', None)!r}: {e}"
+            f"[generate-from-db] value_error report_pipeline_id={pipeline_id!r}: {e}"
         )
         if "permission denied" in emsg.lower() or "temporary files" in emsg.lower():
             raise HTTPException(
@@ -383,28 +408,18 @@ def generate_report_from_db(request: GenerateReportFromDbRequest):
             )
         raise HTTPException(status_code=400, detail=emsg)
     except FileNotFoundError as e:
+        _mark_report_pipeline_failed(pipeline_id)
         print(
-            f"[generate-from-db] file_not_found report_pipeline_id={getattr(request, 'report_pipeline_id', None)!r}: {e}"
+            f"[generate-from-db] file_not_found report_pipeline_id={pipeline_id!r}: {e}"
         )
         raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        _mark_report_pipeline_failed(pipeline_id)
+        raise
     except Exception as e:
+        _mark_report_pipeline_failed(pipeline_id)
         raise_http_if_database_unreachable(e)
         raise_http_if_provider_error(e)
-        # Best-effort: if anything fails during report generation, mark pipeline failed.
-        try:
-            with connect() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        UPDATE tbl_report_pipeline
-                        SET status = 'failed', updated_at = now()
-                        WHERE report_pipeline_id::text = %s
-                        """,
-                        (str(getattr(request, "report_pipeline_id", "")),),
-                    )
-                conn.commit()
-        except Exception as inner:
-            print(f"[generate-from-db] warning: failed to set pipeline status=failed: {inner}")
 
         emsg = str(e)
         if "operator does not exist" in emsg and "uuid = numeric" in emsg:
@@ -416,7 +431,7 @@ def generate_report_from_db(request: GenerateReportFromDbRequest):
                 ),
             )
         print(
-            f"[generate-from-db] error report_pipeline_id={getattr(request, 'report_pipeline_id', None)!r}: {e}"
+            f"[generate-from-db] error report_pipeline_id={pipeline_id!r}: {e}"
         )
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
